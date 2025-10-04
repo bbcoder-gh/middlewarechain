@@ -19,13 +19,13 @@ A simple Go library for chaining middleware functions. This project demonstrates
    ```
 
 ## Usage
-See `chain.go` and `chain_test.go` for example usage.
+See [`chain.go`](./chain.go) and [`chain_test.go`](./chain_test.go) for example usage.
 
 ## Contributing
-See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
+See [CONTRIBUTING.md](./CONTRIBUTING.md) for guidelines.
 
 ## License
-See [LICENSE](LICENSE) for details.
+See [LICENSE](./LICENSE) for details.
 
 ---
 
