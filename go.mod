@@ -1,3 +1,3 @@
-module gopkg.bbcoder.com/middlewarechain
+module github.com/bbcoder-gh/middlewarechain
 
-go 1.20
+go 1.25

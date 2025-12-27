@@ -3,13 +3,15 @@ package middlewarechain
 
 import "net/http"
 
+// Middleware defines a function to process middleware
 type Middleware func(http.HandlerFunc) http.HandlerFunc
 
+// Chain applies multiple middlewares to a http.HandlerFunc and returns the final http.HandlerFunc
 func Chain(h http.HandlerFunc, middlewares ...Middleware) (aggregateHandler http.HandlerFunc) {
 	aggregateHandler = h
 
-	for _, m := range middlewares {
-		aggregateHandler = m(aggregateHandler)
+	for i := len(middlewares) - 1; i >= 0; i-- {
+		aggregateHandler = middlewares[i](aggregateHandler)
 	}
 	return
 }

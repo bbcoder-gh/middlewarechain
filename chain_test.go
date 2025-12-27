@@ -1,101 +1,71 @@
 package middlewarechain
 
 import (
-	"context"
 	"io"
 	"net/http"
 	"net/http/httptest"
 	"testing"
 )
 
-func TestChainAlt(t *testing.T) {
+// Test helpers
+func executeRequest(handler http.Handler) string {
+	w := httptest.NewRecorder()
+	r := httptest.NewRequest(http.MethodGet, "/", nil)
+	handler.ServeHTTP(w, r)
 
-	t.Run("No middleware", func(t *testing.T) {
+	body, _ := io.ReadAll(w.Result().Body)
+	return string(body)
+}
 
-		const (
-			expectedStatusCode = http.StatusOK
-			expectedMessage    = "Handler"
-		)
-
-		handlerFn := func(w http.ResponseWriter, r *http.Request) {
-			w.WriteHeader(http.StatusOK)
-			w.Write([]byte(expectedMessage))
+func prefixMiddleware(prefix string) Middleware {
+	return func(next http.HandlerFunc) http.HandlerFunc {
+		return func(w http.ResponseWriter, r *http.Request) {
+			_, _ = w.Write([]byte(prefix))
+			next.ServeHTTP(w, r)
 		}
-		w := httptest.NewRecorder()
-		r := httptest.NewRequest(http.MethodGet, "/", nil)
+	}
+}
 
-		Chain(handlerFn).ServeHTTP(w, r)
+func TestChain(t *testing.T) {
+	// Handler writes "Handler" to trace execution
+	handler := func(w http.ResponseWriter, _ *http.Request) {
+		_, _ = w.Write([]byte("Handler"))
+	}
 
-		if sc := w.Result().StatusCode; sc != expectedStatusCode {
-			t.Errorf("Got %v instead of %v", sc, expectedStatusCode)
-		}
+	tests := []struct {
+		name       string
+		middleware []Middleware
+		want       string
+	}{
+		{
+			name:       "no middleware",
+			middleware: nil,
+			want:       "Handler",
+		},
+		{
+			name: "one middleware",
+			middleware: []Middleware{
+				prefixMiddleware("Middleware --> "),
+			},
+			want: "Middleware --> Handler",
+		},
+		{
+			name: "two middlewares",
+			middleware: []Middleware{
+				prefixMiddleware("First Middleware -->"),
+				prefixMiddleware("Second Middleware -->"),
+			},
+			want: "First Middleware -->Second Middleware -->Handler",
+		},
+	}
 
-		resp, err := io.ReadAll(w.Result().Body)
-		if err != nil {
-			t.Fatal(err)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := executeRequest(Chain(handler, tt.middleware...))
 
-		} else if str := string(resp); str != expectedMessage {
-			t.Errorf("Got %v instead %v", str, expectedMessage)
-		}
-
-	})
-
-	t.Run("Multiple middlewares", func(t *testing.T) {
-		type customTypeForContextPassing string
-
-		const (
-			message = "Handler"
-
-			middlewareKey1 customTypeForContextPassing = "M1"
-			middlewareKey2 customTypeForContextPassing = "M2"
-
-			Value1 = string(middlewareKey1) + " >> "
-			Value2 = string(middlewareKey2) + " >> "
-
-			expectedMessage = Value1 + Value2 + message
-
-			expectedStatusCode = http.StatusOK
-		)
-
-		middlewareFn1 := func(h http.HandlerFunc) http.HandlerFunc {
-			return func(w http.ResponseWriter, r *http.Request) {
-				ctx := context.WithValue(r.Context(), middlewareKey1, Value1)
-				h.ServeHTTP(w, r.WithContext(ctx))
+			if got != tt.want {
+				t.Errorf("Chain() = %q, want %q", got, tt.want)
 			}
-		}
-
-		middlewareFn2 := func(h http.HandlerFunc) http.HandlerFunc {
-			return func(w http.ResponseWriter, r *http.Request) {
-				ctx := context.WithValue(r.Context(), middlewareKey2, Value2)
-				h.ServeHTTP(w, r.WithContext(ctx))
-			}
-		}
-
-		handlerFn := func(w http.ResponseWriter, r *http.Request) {
-			val1 := r.Context().Value(middlewareKey1).(string)
-			val2 := r.Context().Value(middlewareKey2).(string)
-
-			w.WriteHeader(http.StatusOK)
-			w.Write([]byte(val1 + val2 + message))
-		}
-
-		w := httptest.NewRecorder()
-		r := httptest.NewRequest(http.MethodGet, "/", nil)
-
-		Chain(handlerFn, middlewareFn1, middlewareFn2).ServeHTTP(w, r)
-
-		if sc := w.Result().StatusCode; sc != expectedStatusCode {
-			t.Errorf("Got %v instead of %v", sc, expectedStatusCode)
-		}
-
-		resp, err := io.ReadAll(w.Result().Body)
-		if err != nil {
-			t.Fatal(err)
-
-		} else if str := string(resp); str != expectedMessage {
-			t.Errorf("Got %v instead %v", str, expectedMessage)
-		}
-
-	})
-
+		})
+	}
 }
